@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const nodemailer = require('nodemailer');
 const Anthropic = require('@anthropic-ai/sdk');
+const https = require('https');
 
 const app = express();
 app.use(cors());
@@ -17,11 +18,11 @@ const COSTS_FILE  = path.join(__dirname, 'data', 'costs.json');
 function loadConfig() {
   let config = {};
   try { config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch {}
-  // Environment variables override config file (for Render.com hosting)
-  if (process.env.ANTHROPIC_KEY) config.anthropicKey = process.env.ANTHROPIC_KEY;
-  if (process.env.GMAIL_USER)    config.gmailUser    = process.env.GMAIL_USER;
-  if (process.env.GMAIL_PASS)    config.gmailPass    = process.env.GMAIL_PASS;
-  if (process.env.SENDER_NAME)   config.senderName   = process.env.SENDER_NAME;
+  if (process.env.ANTHROPIC_KEY)  config.anthropicKey  = process.env.ANTHROPIC_KEY;
+  if (process.env.GMAIL_USER)     config.gmailUser     = process.env.GMAIL_USER;
+  if (process.env.GMAIL_PASS)     config.gmailPass     = process.env.GMAIL_PASS;
+  if (process.env.SENDER_NAME)    config.senderName    = process.env.SENDER_NAME;
+  if (process.env.GOOGLE_MAPS_KEY) config.googleMapsKey = process.env.GOOGLE_MAPS_KEY;
   return config;
 }
 function loadLog() {
@@ -33,8 +34,6 @@ function loadCosts() {
   catch { return { total_usd: 0, entries: [] }; }
 }
 function saveCosts(c) { fs.writeFileSync(COSTS_FILE, JSON.stringify(c, null, 2)); }
-
-// claude-sonnet-4: $3/1M input, $15/1M output
 function calcCost(usage) {
   if (!usage) return 0;
   return (usage.input_tokens || 0) * 3 / 1_000_000 + (usage.output_tokens || 0) * 15 / 1_000_000;
@@ -49,26 +48,78 @@ function trackCost(type, usage, detail) {
   return cost;
 }
 
+// ── GOOGLE MAPS HELPER ────────────────────────────────────────────────────────
+function googleMapsRequest(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch(e) { reject(e); }
+      });
+    }).on('error', reject);
+  });
+}
+
+async function searchGoogleMaps(type, city, count, apiKey) {
+  const query = encodeURIComponent(`${type} ${city}`);
+  const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&language=fr&key=${apiKey}`;
+  
+  const data = await googleMapsRequest(url);
+  if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+    throw new Error(`Google Maps erreur: ${data.status} - ${data.error_message || ''}`);
+  }
+
+  const places = (data.results || []).slice(0, count);
+  const prospects = [];
+
+  for (const place of places) {
+    // Get details for each place (phone, website)
+    const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_phone_number,website,formatted_address,rating,types&language=fr&key=${apiKey}`;
+    try {
+      const detail = await googleMapsRequest(detailUrl);
+      const d = detail.result || {};
+      prospects.push({
+        name: d.name || place.name,
+        phone: d.formatted_phone_number || '',
+        email: '',
+        address: d.formatted_address || place.formatted_address || '',
+        website: d.website || '',
+        hasWebsite: !!d.website,
+        source: 'Google Maps',
+        rating: d.rating ? `${d.rating}/5` : '',
+        note: d.rating ? `Note Google: ${d.rating}/5` : ''
+      });
+    } catch(e) {
+      prospects.push({
+        name: place.name,
+        phone: '',
+        email: '',
+        address: place.formatted_address || '',
+        website: '',
+        hasWebsite: false,
+        source: 'Google Maps',
+        rating: place.rating ? `${place.rating}/5` : '',
+        note: ''
+      });
+    }
+  }
+  return prospects;
+}
+
 // ── SEARCH ────────────────────────────────────────────────────────────────────
 app.post('/api/search', async (req, res) => {
-  const { type, city, count = 6 } = req.body;
+  const { type, city, count = 10 } = req.body;
   const config = loadConfig();
-  if (!config.anthropicKey) return res.status(400).json({ error: 'Clé API Anthropic manquante.' });
-  const client = new Anthropic({ apiKey: config.anthropicKey });
+
+  if (!config.googleMapsKey) {
+    return res.status(400).json({ error: 'Clé Google Maps manquante. Ajoute GOOGLE_MAPS_KEY dans Render.' });
+  }
+
   try {
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1000,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      messages: [{ role: 'user', content: `Trouve ${count} vrais "${type}" à ${city} Canada avec web_search. Pour chacun: nom, téléphone, email, adresse, site web. JSON uniquement sans markdown: {"prospects":[{"name":"","phone":"","email":"","address":"","website":"","source":"","hasWebsite":true,"note":""}]}` }]
-    });
-    const cost = trackCost('search', response.usage, `${type} à ${city}`);
-    const textBlock = response.content.find(b => b.type === 'text');
-    if (!textBlock) return res.json({ prospects: [], cost });
-    let parsed;
-    try { parsed = JSON.parse(textBlock.text.trim()); }
-    catch { const m = textBlock.text.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : { prospects: [] }; }
-    res.json({ ...parsed, cost });
+    const prospects = await searchGoogleMaps(type, city, parseInt(count), config.googleMapsKey);
+    res.json({ prospects });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -133,12 +184,14 @@ app.get('/api/config', (req, res) => {
   const config = loadConfig();
   const safe = { ...config };
   if (safe.gmailPass) safe.gmailPass = '••••••••';
+  if (safe.googleMapsKey) safe.googleMapsKey = '••••••••';
   res.json(safe);
 });
 app.post('/api/config', (req, res) => {
   const existing = loadConfig();
   const updated = { ...existing, ...req.body };
   if (req.body.gmailPass === '••••••••') updated.gmailPass = existing.gmailPass;
+  if (req.body.googleMapsKey === '••••••••') updated.googleMapsKey = existing.googleMapsKey;
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(updated, null, 2));
   res.json({ success: true });
 });
