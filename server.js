@@ -62,50 +62,48 @@ function googleMapsRequest(url) {
   });
 }
 
+function googleMapsRequestNew(url, body) {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url);
+    const options = {
+      hostname: urlObj.hostname,
+      path: urlObj.pathname + urlObj.search,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.id' }
+    };
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { reject(e); } });
+    });
+    req.on('error', reject);
+    req.write(JSON.stringify(body));
+    req.end();
+  });
+}
+
 async function searchGoogleMaps(type, city, count, apiKey) {
-  const query = encodeURIComponent(`${type} ${city}`);
-  const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&language=fr&key=${apiKey}`;
-  
-  const data = await googleMapsRequest(url);
-  if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-    throw new Error(`Google Maps erreur: ${data.status} - ${data.error_message || ''}`);
+  const url = `https://places.googleapis.com/v1/places:searchText?key=${apiKey}`;
+  const body = { textQuery: `${type} ${city}`, languageCode: 'fr', maxResultCount: Math.min(count, 20) };
+
+  const data = await googleMapsRequestNew(url, body);
+
+  if (data.error) {
+    throw new Error(`Google Maps erreur: ${data.error.status} - ${data.error.message}`);
   }
 
-  const places = (data.results || []).slice(0, count);
-  const prospects = [];
-
-  for (const place of places) {
-    // Get details for each place (phone, website)
-    const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_phone_number,website,formatted_address,rating,types&language=fr&key=${apiKey}`;
-    try {
-      const detail = await googleMapsRequest(detailUrl);
-      const d = detail.result || {};
-      prospects.push({
-        name: d.name || place.name,
-        phone: d.formatted_phone_number || '',
-        email: '',
-        address: d.formatted_address || place.formatted_address || '',
-        website: d.website || '',
-        hasWebsite: !!d.website,
-        source: 'Google Maps',
-        rating: d.rating ? `${d.rating}/5` : '',
-        note: d.rating ? `Note Google: ${d.rating}/5` : ''
-      });
-    } catch(e) {
-      prospects.push({
-        name: place.name,
-        phone: '',
-        email: '',
-        address: place.formatted_address || '',
-        website: '',
-        hasWebsite: false,
-        source: 'Google Maps',
-        rating: place.rating ? `${place.rating}/5` : '',
-        note: ''
-      });
-    }
-  }
-  return prospects;
+  const places = data.places || [];
+  return places.map(p => ({
+    name: p.displayName?.text || '',
+    phone: p.nationalPhoneNumber || '',
+    email: '',
+    address: p.formattedAddress || '',
+    website: p.websiteUri || '',
+    hasWebsite: !!p.websiteUri,
+    source: 'Google Maps',
+    rating: p.rating ? `${p.rating}/5` : '',
+    note: p.rating ? `Note Google: ${p.rating}/5` : ''
+  }));
 }
 
 // ── SEARCH ────────────────────────────────────────────────────────────────────
