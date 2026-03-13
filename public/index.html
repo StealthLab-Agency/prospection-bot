@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bot Prospection</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0f0f0f;--bg2:#161616;--bg3:#1e1e1e;--bg4:#262626;
+    --border:#2a2a2a;--border2:#333;
+    --text:#e8e8e8;--text2:#888;--text3:#555;
+    --green:#22c55e;--green-bg:#052010;
+    --blue:#3b82f6;--blue-bg:#051225;
+    --amber:#f59e0b;--amber-bg:#150e00;
+    --red:#ef4444;--red-bg:#150505;
+    --radius:8px;--radius-lg:12px;
+  }
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;}
+  
+  /* LAYOUT */
+  .layout{display:flex;height:100vh;}
+  .sidebar{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:0;}
+  .sidebar-logo{padding:1.25rem 1rem 1rem;border-bottom:1px solid var(--border);}
+  .sidebar-logo .name{font-size:15px;font-weight:600;color:var(--text);}
+  .sidebar-logo .sub{font-size:11px;color:var(--text3);margin-top:2px;}
+  .sidebar-nav{padding:0.5rem 0;flex:1;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 1rem;cursor:pointer;color:var(--text2);font-size:13px;transition:all 0.15s;border-left:2px solid transparent;}
+  .nav-item:hover{background:var(--bg3);color:var(--text);}
+  .nav-item.active{background:var(--bg3);color:var(--text);border-left-color:var(--text);}
+  .nav-icon{font-size:15px;width:18px;text-align:center;}
+  .nav-badge{margin-left:auto;background:var(--bg4);color:var(--text2);font-size:10px;padding:1px 6px;border-radius:10px;font-family:'DM Mono',monospace;}
+  .sidebar-status{padding:1rem;border-top:1px solid var(--border);}
+  .status-row{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);}
+  .dot{width:6px;height:6px;border-radius:50%;}
+  .dot.green{background:var(--green);}
+  .dot.red{background:var(--red);}
+  
+  .main{flex:1;overflow-y:auto;display:flex;flex-direction:column;}
+  .topbar{padding:1rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg2);position:sticky;top:0;z-index:10;}
+  .topbar-title{font-size:16px;font-weight:600;}
+  .topbar-sub{font-size:12px;color:var(--text3);margin-top:1px;}
+  .content{padding:1.5rem;flex:1;}
+  
+  /* PANELS */
+  .panel{display:none;}
+  .panel.active{display:block;}
+  
+  /* CARDS */
+  .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem;}
+  .card + .card{margin-top:1rem;}
+  
+  /* FORM */
+  .form-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+  .form-group{display:flex;flex-direction:column;gap:5px;flex:1;min-width:130px;}
+  label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.05em;font-weight:500;}
+  input,select,textarea{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:0 10px;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif;transition:border-color 0.15s;}
+  input,select{height:36px;}
+  textarea{padding:10px;resize:vertical;line-height:1.6;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:#555;}
+  select option{background:var(--bg3);}
+  
+  /* BUTTONS */
+  .btn{height:36px;padding:0 16px;border-radius:var(--radius);border:1px solid var(--border2);font-size:13px;cursor:pointer;background:var(--bg3);color:var(--text);font-family:'DM Sans',sans-serif;font-weight:500;transition:all 0.15s;white-space:nowrap;}
+  .btn:hover{background:var(--bg4);border-color:#444;}
+  .btn:active{transform:scale(0.98);}
+  .btn:disabled{opacity:0.35;cursor:not-allowed;transform:none;}
+  .btn.primary{background:var(--text);color:var(--bg);border-color:var(--text);}
+  .btn.primary:hover{background:#ccc;}
+  .btn.danger{background:var(--red-bg);color:var(--red);border-color:var(--red);}
+  .btn-sm{height:28px;padding:0 10px;font-size:12px;}
+  
+  /* STATS */
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.25rem;}
+  .stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem 1.25rem;}
+  .stat-val{font-size:26px;font-weight:600;font-family:'DM Mono',monospace;}
+  .stat-lbl{font-size:11px;color:var(--text3);margin-top:3px;}
+  
+  /* PROSPECTS */
+  .prospects-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-top:1rem;}
+  .prospect-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem;display:flex;flex-direction:column;gap:8px;transition:border-color 0.15s;}
+  .prospect-card:hover{border-color:var(--border2);}
+  .prospect-card.real{border-left:2px solid var(--green);}
+  .pc-header{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .pc-name{font-weight:600;font-size:14px;line-height:1.3;}
+  .pc-meta{display:flex;flex-direction:column;gap:3px;}
+  .pc-meta span{font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px;}
+  .pc-footer{display:flex;gap:6px;padding-top:8px;border-top:1px solid var(--border);}
+  .pc-footer .btn{flex:1;}
+  .badge{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:500;white-space:nowrap;}
+  .badge-green{background:var(--green-bg);color:var(--green);}
+  .badge-blue{background:var(--blue-bg);color:var(--blue);}
+  .badge-amber{background:var(--amber-bg);color:var(--amber);}
+  .badge-red{background:var(--red-bg);color:var(--red);}
+  .badge-gray{background:var(--bg4);color:var(--text2);}
+  
+  /* SOURCE FILTER */
+  .src-filters{display:flex;gap:6px;margin:1rem 0 0.5rem;flex-wrap:wrap;}
+  .src-btn{padding:4px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--border2);color:var(--text2);background:transparent;transition:all 0.15s;font-family:'DM Sans',sans-serif;}
+  .src-btn:hover{border-color:#555;color:var(--text);}
+  .src-btn.active{background:var(--text);color:var(--bg);border-color:var(--text);}
+  
+  /* PROGRESS */
+  .progress-wrap{margin-top:1rem;padding:1rem;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border);}
+  .progress-label{font-size:13px;color:var(--text2);margin-bottom:8px;}
+  .progress-bar{height:3px;background:var(--bg4);border-radius:2px;overflow:hidden;}
+  .progress-fill{height:100%;background:var(--text);border-radius:2px;transition:width 0.5s ease;}
+  .spinner{display:inline-block;width:12px;height:12px;border:1.5px solid var(--border2);border-top-color:var(--text2);border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  
+  /* LOG TABLE */
+  .log-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .log-table th{text-align:left;padding:8px 12px;font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--border);}
+  .log-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  .log-table tr:last-child td{border-bottom:none;}
+  .log-table tr:hover td{background:var(--bg3);}
+  .status-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;}
+  
+  /* COMPOSE */
+  .compose-block{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem;margin-top:1rem;}
+  
+  /* SETTINGS */
+  .settings-section{margin-bottom:1.5rem;}
+  .settings-section h3{font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.75rem;}
+  .settings-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;}
+  .settings-row .form-group{flex:1;min-width:200px;}
+  .settings-note{font-size:12px;color:var(--text3);margin-top:4px;line-height:1.5;}
+  .settings-note a{color:var(--blue);text-decoration:none;}
+  
+  /* EMPTY */
+  .empty{padding:3rem;text-align:center;color:var(--text3);font-size:13px;border:1px dashed var(--border2);border-radius:var(--radius-lg);margin-top:1rem;}
+  
+  /* MODAL */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:999;}
+  .modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:1.5rem;width:min(540px,95vw);max-height:85vh;overflow-y:auto;}
+  .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;}
+  .modal-header h3{font-size:16px;font-weight:600;}
+  .modal-close{background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:0 4px;line-height:1;}
+  .email-preview{background:var(--bg3);border-radius:var(--radius);padding:1rem;font-size:13px;white-space:pre-wrap;line-height:1.7;color:var(--text2);border:1px solid var(--border);}
+  
+  /* ALERTS */
+  .alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:1rem;}
+  .alert-error{background:var(--red-bg);color:var(--red);border:1px solid var(--red);}
+  .alert-success{background:var(--green-bg);color:var(--green);border:1px solid var(--green);}
+
+  @media(max-width:768px){
+    .sidebar{display:none;}
+    .stats-grid{grid-template-columns:repeat(2,1fr);}
+    .prospects-grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="name">ProspectBot</div>
+      <div class="sub">Agence web · Prospection</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" onclick="showPanel('search')">
+        <span class="nav-icon">🔍</span> Trouver des clients
+      </div>
+      <div class="nav-item" onclick="showPanel('compose')">
+        <span class="nav-icon">✉</span> Composer & envoyer
+      </div>
+      <div class="nav-item" onclick="showPanel('log');loadLog();">
+        <span class="nav-icon">📋</span> Journal
+        <span class="nav-badge" id="nav-badge">0</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('costs');loadCosts();">
+        <span class="nav-icon">💰</span> Coûts IA
+      </div>
+      <div class="nav-item" onclick="showPanel('settings')">
+        <span class="nav-icon">⚙</span> Paramètres
+      </div>
+    </nav>
+    <div class="sidebar-status">
+      <div class="status-row">
+        <div class="dot" id="api-dot" style="background:var(--text3)"></div>
+        <span id="api-status">API non configurée</span>
+      </div>
+      <div class="status-row" style="margin-top:6px;">
+        <div class="dot" id="gmail-dot" style="background:var(--text3)"></div>
+        <span id="gmail-status">Gmail non configuré</span>
+      </div>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Coûts IA aujourd'hui</div>
+        <div style="font-size:20px;font-weight:600;font-family:'DM Mono',monospace;color:var(--amber);" id="cost-today">$0.0000</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">Total: <span id="cost-total" style="color:var(--text2);">$0.0000</span></div>
+        <button onclick="showPanel('costs')" style="margin-top:8px;width:100%;height:26px;border-radius:var(--radius);border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;">Voir le détail →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- SEARCH -->
+    <div id="panel-search" class="panel active">
+      <div class="topbar">
+        <div>
+          <div class="topbar-title">Trouver des clients</div>
+          <div class="topbar-sub">Recherche réelle via Google, Pages Jaunes, Yelp</div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="card">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Type de business</label>
+              <input id="biz-type" value="restaurant français" placeholder="ex: salon coiffure, boutique, garage..." />
+            </div>
+            <div class="form-group" style="max-width:160px;">
+              <label>Ville / Région</label>
+              <input id="biz-city" value="Montréal" />
+            </div>
+            <div class="form-group" style="max-width:110px;">
+              <label>Résultats</label>
+              <select id="biz-count">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+              </select>
+            </div>
+            <button class="btn primary" onclick="searchProspects()" id="search-btn">Rechercher →</button>
+          </div>
+        </div>
+
+        <div id="progress-area" style="display:none;">
+          <div class="progress-wrap">
+            <div class="progress-label"><span class="spinner"></span><span id="prog-msg">Recherche en cours...</span></div>
+            <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:5%"></div></div>
+          </div>
+        </div>
+
+        <div id="src-filters-wrap" style="display:none;">
+          <div class="src-filters">
+            <button class="src-btn active" onclick="filterSrc('all')" id="sf-all">Tous (<span id="cnt-all">0</span>)</button>
+            <button class="src-btn" onclick="filterSrc('pj')" id="sf-pj">Pages Jaunes (<span id="cnt-pj">0</span>)</button>
+            <button class="src-btn" onclick="filterSrc('yelp')" id="sf-yelp">Yelp (<span id="cnt-yelp">0</span>)</button>
+            <button class="src-btn" onclick="filterSrc('web')" id="sf-web">Web (<span id="cnt-web">0</span>)</button>
+          </div>
+        </div>
+
+        <div id="prospects-container"></div>
+      </div>
+    </div>
+
+    <!-- COMPOSE -->
+    <div id="panel-compose" class="panel">
+      <div class="topbar">
+        <div>
+          <div class="topbar-title">Composer & Envoyer</div>
+          <div class="topbar-sub">L'IA rédige, Gmail envoie</div>
+        </div>
+      </div>
+      <div class="content">
+        <div id="compose-alert"></div>
+        <div class="card">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nom du client</label>
+              <input id="c-name" placeholder="ex: Le Petit Bistro" />
+            </div>
+            <div class="form-group">
+              <label>Email du client</label>
+              <input id="c-email" type="email" placeholder="contact@restaurant.com" />
+            </div>
+          </div>
+          <div class="form-row" style="margin-top:10px;">
+            <div class="form-group">
+              <label>Service à proposer</label>
+              <select id="c-service">
+                <option>Création de site web</option>
+                <option>Refonte de site web</option>
+                <option>Site e-commerce</option>
+                <option>Gestion réseaux sociaux</option>
+                <option>SEO / Référencement</option>
+                <option>Logo & identité visuelle</option>
+                <option>Application mobile</option>
+              </select>
+            </div>
+            <div class="form-group" style="max-width:180px;">
+              <label>Ton de l'email</label>
+              <select id="c-tone">
+                <option>Professionnel</option>
+                <option>Chaleureux et amical</option>
+                <option>Direct et concis</option>
+              </select>
+            </div>
+            <button class="btn" onclick="generateEmail()" id="gen-btn">✦ Générer avec l'IA</button>
+          </div>
+        </div>
+
+        <div class="compose-block">
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>Objet de l'email</label>
+            <input id="email-subject" placeholder="L'IA va générer l'objet..." />
+          </div>
+          <div class="form-group">
+            <label>Corps de l'email</label>
+            <textarea id="email-body" rows="12" placeholder="Clique sur '✦ Générer avec l'IA' ou écris ton email ici..."></textarea>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:1rem;">
+          <button class="btn" onclick="clearCompose()">Effacer</button>
+          <button class="btn primary" onclick="sendEmail()" id="send-btn">Envoyer via Gmail →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOG -->
+    <div id="panel-log" class="panel">
+      <div class="topbar">
+        <div>
+          <div class="topbar-title">Journal des envois</div>
+          <div class="topbar-sub">Historique complet de toutes tes prospections</div>
+        </div>
+        <button class="btn btn-sm" onclick="exportLog()">↓ Exporter CSV</button>
+      </div>
+      <div class="content">
+        <div class="stats-grid" id="log-stats">
+          <div class="stat-card"><div class="stat-val" id="st-total">0</div><div class="stat-lbl">Emails envoyés</div></div>
+          <div class="stat-card"><div class="stat-val" id="st-today">0</div><div class="stat-lbl">Aujourd'hui</div></div>
+          <div class="stat-card"><div class="stat-val" id="st-week">0</div><div class="stat-lbl">Cette semaine</div></div>
+          <div class="stat-card"><div class="stat-val" id="st-services">0</div><div class="stat-lbl">Services proposés</div></div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div id="log-table-wrap"></div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- COSTS -->
+    <div id="panel-costs" class="panel">
+      <div class="topbar">
+        <div>
+          <div class="topbar-title">Coûts IA</div>
+          <div class="topbar-sub">Chaque appel à Claude facturé en temps réel</div>
+        </div>
+        <button class="btn btn-sm danger" onclick="resetCosts()">Remettre à zéro</button>
+      </div>
+      <div class="content">
+        <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
+          <div class="stat-card">
+            <div class="stat-val" id="c-today" style="color:var(--amber);">$0.0000</div>
+            <div class="stat-lbl">Aujourd'hui</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val" id="c-week">$0.0000</div>
+            <div class="stat-lbl">Cette semaine</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val" id="c-total">$0.0000</div>
+            <div class="stat-lbl">Total cumulé</div>
+          </div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div id="costs-table-wrap"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="panel-settings" class="panel">
+      <div class="topbar">
+        <div>
+          <div class="topbar-title">Paramètres</div>
+          <div class="topbar-sub">Configure tes clés API et ton compte Gmail</div>
+        </div>
+      </div>
+      <div class="content">
+        <div id="settings-alert"></div>
+        <div class="card">
+          <div class="settings-section">
+            <h3>🤖 API Anthropic (Claude)</h3>
+            <div class="settings-row">
+              <div class="form-group">
+                <label>Clé API Anthropic</label>
+                <input id="s-anthropic" type="password" placeholder="sk-ant-..." />
+                <div class="settings-note">Obtiens ta clé sur <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <h3>📧 Compte Gmail expéditeur</h3>
+            <div class="settings-row">
+              <div class="form-group">
+                <label>Adresse Gmail</label>
+                <input id="s-gmail" type="email" placeholder="tonemail@gmail.com" />
+              </div>
+              <div class="form-group">
+                <label>Mot de passe d'application</label>
+                <input id="s-pass" type="password" placeholder="xxxx xxxx xxxx xxxx" />
+                <div class="settings-note">Utilise un <a href="https://myaccount.google.com/apppasswords" target="_blank">mot de passe d'application Gmail</a>, pas ton vrai mot de passe.</div>
+              </div>
+            </div>
+            <div class="settings-row">
+              <div class="form-group">
+                <label>Nom de l'expéditeur</label>
+                <input id="s-sender" placeholder="ex: Jean Tremblay - WebAgence" />
+              </div>
+            </div>
+          </div>
+
+          <button class="btn primary" onclick="saveSettings()">Sauvegarder</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-bg" id="modal" style="display:none;" onclick="if(event.target.id==='modal')closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Détails de l'email</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let allProspects = [];
+let filteredProspects = [];
+let emailLog = [];
+let currentFilter = 'all';
+
+// ── NAV ───────────────────────────────────────────────────────────────────────
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  const items = document.querySelectorAll('.nav-item');
+  const map = ['search','compose','log','settings'];
+  items.forEach((item, i) => { if(map[i]===name) item.classList.add('active'); });
+}
+
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+async function loadConfig() {
+  try {
+    const r = await fetch('/api/config');
+    const c = await r.json();
+    if (c.anthropicKey) { document.getElementById('s-anthropic').value = c.anthropicKey; }
+    if (c.gmailUser) document.getElementById('s-gmail').value = c.gmailUser;
+    if (c.gmailPass) document.getElementById('s-pass').value = c.gmailPass;
+    if (c.senderName) document.getElementById('s-sender').value = c.senderName;
+    updateStatusDots(c);
+  } catch(e) {}
+}
+
+function updateStatusDots(config) {
+  const apiOk = !!config.anthropicKey;
+  const gmailOk = !!config.gmailUser && !!config.gmailPass;
+  document.getElementById('api-dot').style.background = apiOk ? 'var(--green)' : 'var(--red)';
+  document.getElementById('api-status').textContent = apiOk ? 'Claude connecté' : 'API non configurée';
+  document.getElementById('gmail-dot').style.background = gmailOk ? 'var(--green)' : 'var(--red)';
+  document.getElementById('gmail-status').textContent = gmailOk ? 'Gmail connecté' : 'Gmail non configuré';
+}
+
+async function saveSettings() {
+  const body = {
+    anthropicKey: document.getElementById('s-anthropic').value,
+    gmailUser: document.getElementById('s-gmail').value,
+    gmailPass: document.getElementById('s-pass').value,
+    senderName: document.getElementById('s-sender').value
+  };
+  try {
+    const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (d.success) {
+      showAlert('settings-alert', 'success', '✓ Paramètres sauvegardés !');
+      updateStatusDots(body);
+    }
+  } catch(e) { showAlert('settings-alert', 'error', 'Erreur: ' + e.message); }
+}
+
+// ── SEARCH ────────────────────────────────────────────────────────────────────
+async function searchProspects() {
+  const type = document.getElementById('biz-type').value;
+  const city = document.getElementById('biz-city').value;
+  const count = document.getElementById('biz-count').value;
+  const btn = document.getElementById('search-btn');
+
+  btn.disabled = true;
+  allProspects = [];
+  document.getElementById('prospects-container').innerHTML = '';
+  document.getElementById('src-filters-wrap').style.display = 'none';
+
+  const prog = document.getElementById('progress-area');
+  prog.style.display = 'block';
+  setProgress('Connexion à Claude + recherche web...', 10);
+
+  try {
+    setProgress('Recherche sur Google, Pages Jaunes, Yelp...', 30);
+    const r = await fetch('/api/search', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ type, city, count })
+    });
+    setProgress('Compilation des résultats...', 80);
+    const data = await r.json();
+
+    if (data.error) {
+      prog.style.display = 'none';
+      document.getElementById('prospects-container').innerHTML = `<div class="empty">❌ ${data.error}</div>`;
+      btn.disabled = false;
+      return;
+    }
+
+    allProspects = data.prospects || [];
+    setProgress('Terminé !', 100);
+    setTimeout(() => {
+      prog.style.display = 'none';
+      document.getElementById('src-filters-wrap').style.display = 'block';
+      updateCounts();
+      filterSrc('all');
+    }, 400);
+  } catch(e) {
+    prog.style.display = 'none';
+    document.getElementById('prospects-container').innerHTML = `<div class="empty">❌ Erreur: ${e.message}<br><br>Vérifie que le serveur tourne sur http://localhost:3000</div>`;
+  }
+  btn.disabled = false;
+}
+
+function setProgress(msg, pct) {
+  document.getElementById('prog-msg').textContent = msg;
+  document.getElementById('prog-fill').style.width = pct + '%';
+}
+
+function updateCounts() {
+  const srcMap = { pj: 0, yelp: 0, web: 0 };
+  allProspects.forEach(p => {
+    const src = (p.source||'').toLowerCase();
+    if (src.includes('page') || src === 'pj') srcMap.pj++;
+    else if (src.includes('yelp')) srcMap.yelp++;
+    else srcMap.web++;
+  });
+  document.getElementById('cnt-all').textContent = allProspects.length;
+  document.getElementById('cnt-pj').textContent = srcMap.pj;
+  document.getElementById('cnt-yelp').textContent = srcMap.yelp;
+  document.getElementById('cnt-web').textContent = srcMap.web;
+}
+
+function filterSrc(f) {
+  currentFilter = f;
+  document.querySelectorAll('.src-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('sf-' + f).classList.add('active');
+
+  if (f === 'all') { filteredProspects = allProspects; }
+  else {
+    filteredProspects = allProspects.filter(p => {
+      const src = (p.source||'').toLowerCase();
+      if (f==='pj') return src.includes('page') || src==='pj';
+      if (f==='yelp') return src.includes('yelp');
+      if (f==='web') return !src.includes('page') && !src.includes('yelp') && src!=='pj';
+      return true;
+    });
+  }
+  renderProspects();
+}
+
+function renderProspects() {
+  const container = document.getElementById('prospects-container');
+  if (!filteredProspects.length) {
+    container.innerHTML = '<div class="empty">Aucun résultat pour ce filtre.</div>';
+    return;
+  }
+
+  const cards = filteredProspects.map((c, i) => {
+    const realIdx = allProspects.indexOf(c);
+    const src = (c.source||'web').toLowerCase();
+    let badgeCls = 'badge-gray', badgeLabel = 'Web';
+    if (src.includes('page')||src==='pj') { badgeCls='badge-green'; badgeLabel='Pages Jaunes'; }
+    else if (src.includes('yelp')) { badgeCls='badge-amber'; badgeLabel='Yelp'; }
+
+    return `<div class="prospect-card real">
+      <div class="pc-header">
+        <div class="pc-name">${c.name||'—'}</div>
+        <span class="badge ${badgeCls}">${badgeLabel}</span>
+      </div>
+      <div class="pc-meta">
+        ${c.phone ? `<span>📞 ${c.phone}</span>` : ''}
+        ${c.email ? `<span>✉ ${c.email}</span>` : `<span style="font-style:italic;color:var(--text3)">Email non trouvé</span>`}
+        ${c.address ? `<span>📍 ${c.address}</span>` : ''}
+        ${c.rating ? `<span>★ ${c.rating}</span>` : ''}
+      </div>
+      ${c.note ? `<div style="font-size:11px;color:var(--text3);padding-top:6px;border-top:1px solid var(--border);">${c.note}</div>` : ''}
+      <div class="pc-footer">
+        ${c.website ? `<button class="btn btn-sm" onclick="window.open('${c.website}','_blank')">Site ↗</button>` : ''}
+        <button class="btn btn-sm primary" onclick="prefillCompose(${realIdx})">Contacter →</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  container.innerHTML = `<div class="prospects-grid">${cards}</div>`;
+}
+
+// ── COMPOSE ───────────────────────────────────────────────────────────────────
+function prefillCompose(i) {
+  const c = allProspects[i];
+  document.getElementById('c-name').value = c.name || '';
+  document.getElementById('c-email').value = c.email || '';
+  showPanel('compose');
+}
+
+async function generateEmail() {
+  const name = document.getElementById('c-name').value || 'Client';
+  const service = document.getElementById('c-service').value;
+  const tone = document.getElementById('c-tone').value;
+  const btn = document.getElementById('gen-btn');
+  btn.disabled = true; btn.textContent = '⏳ Génération...';
+
+  try {
+    const r = await fetch('/api/generate-email', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ clientName: name, service, tone })
+    });
+    const data = await r.json();
+    if (data.error) { showAlert('compose-alert','error', data.error); return; }
+    document.getElementById('email-subject').value = data.subject || '';
+    document.getElementById('email-body').value = data.body || '';
+  } catch(e) { showAlert('compose-alert','error', 'Erreur: ' + e.message); }
+
+  btn.disabled = false; btn.textContent = '✦ Générer avec l\'IA';
+}
+
+async function sendEmail() {
+  const to = document.getElementById('c-email').value;
+  const toName = document.getElementById('c-name').value;
+  const subject = document.getElementById('email-subject').value;
+  const body = document.getElementById('email-body').value;
+  const service = document.getElementById('c-service').value;
+
+  if (!to||!subject||!body) { showAlert('compose-alert','error','Remplis tous les champs.'); return; }
+
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true; btn.textContent = 'Envoi en cours...';
+
+  try {
+    const r = await fetch('/api/send-email', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ to, toName, subject, body, service })
+    });
+    const data = await r.json();
+    if (data.success) {
+      showAlert('compose-alert','success','✓ Email envoyé avec succès !');
+      clearCompose();
+      updateLogBadge(1);
+    } else {
+      showAlert('compose-alert','error','❌ ' + (data.error||'Erreur inconnue'));
+    }
+  } catch(e) { showAlert('compose-alert','error','Erreur: ' + e.message); }
+
+  btn.disabled = false; btn.textContent = 'Envoyer via Gmail →';
+}
+
+function clearCompose() {
+  ['c-name','c-email','email-subject','email-body'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value='';
+  });
+}
+
+// ── LOG ───────────────────────────────────────────────────────────────────────
+async function loadLog() {
+  try {
+    const r = await fetch('/api/log');
+    emailLog = await r.json();
+    renderLog();
+    updateLogBadge(0);
+  } catch(e) {}
+}
+
+function renderLog() {
+  const today = new Date().toDateString();
+  const weekAgo = Date.now() - 7*24*60*60*1000;
+  document.getElementById('st-total').textContent = emailLog.length;
+  document.getElementById('st-today').textContent = emailLog.filter(e => new Date(e.date).toDateString()===today).length;
+  document.getElementById('st-week').textContent = emailLog.filter(e => new Date(e.date).getTime()>weekAgo).length;
+  document.getElementById('st-services').textContent = new Set(emailLog.map(e=>e.service)).size;
+
+  const wrap = document.getElementById('log-table-wrap');
+  if (!emailLog.length) { wrap.innerHTML = '<div class="empty">Aucun email envoyé pour l\'instant.</div>'; return; }
+
+  wrap.innerHTML = `<table class="log-table">
+    <thead><tr><th>Date</th><th>Destinataire</th><th>Objet</th><th>Service</th><th>Statut</th><th></th></tr></thead>
+    <tbody>${emailLog.map(e => {
+      const d = new Date(e.date);
+      const ds = d.toLocaleDateString('fr-CA') + ' ' + d.toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+      const ok = e.status === 'sent';
+      return `<tr>
+        <td style="font-size:11px;color:var(--text3);white-space:nowrap;font-family:'DM Mono',monospace">${ds}</td>
+        <td><div style="font-weight:600">${e.to}</div><div style="font-size:11px;color:var(--text3)">${e.email}</div></td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.subject}</td>
+        <td><span class="badge badge-gray">${e.service||'—'}</span></td>
+        <td><span class="status-dot" style="background:${ok?'var(--green)':'var(--red)'}"></span><span style="font-size:12px;color:${ok?'var(--green)':'var(--red)'}">${ok?'Envoyé':'Erreur'}</span></td>
+        <td><button class="btn btn-sm" onclick="viewLog(${e.id})">Voir</button></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+function viewLog(id) {
+  const e = emailLog.find(x => x.id===id);
+  if (!e) return;
+  const d = new Date(e.date);
+  document.getElementById('modal-title').textContent = '✉ Email à ' + e.to;
+  document.getElementById('modal-body').innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;">
+      <span class="badge badge-gray">📅 ${d.toLocaleDateString('fr-CA')} ${d.toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'})}</span>
+      <span class="badge badge-gray">✉ ${e.email}</span>
+      <span class="badge badge-gray">${e.service||'—'}</span>
+      <span class="badge ${e.status==='sent'?'badge-green':'badge-red'}">${e.status==='sent'?'Envoyé':'Erreur'}</span>
+    </div>
+    <div style="margin-bottom:0.75rem;">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Objet</div>
+      <div style="font-size:15px;font-weight:600;">${e.subject}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Corps</div>
+      <div class="email-preview">${e.body}</div>
+    </div>
+    ${e.error ? `<div class="alert alert-error" style="margin-top:10px;">Erreur: ${e.error}</div>` : ''}`;
+  document.getElementById('modal').style.display = 'flex';
+}
+
+function closeModal() { document.getElementById('modal').style.display = 'none'; }
+
+function exportLog() {
+  if (!emailLog.length) return;
+  const header = ['Date','Destinataire','Email','Objet','Service','Statut'];
+  const rows = emailLog.map(e => [
+    new Date(e.date).toLocaleString('fr-CA'),
+    e.to, e.email, `"${e.subject}"`, e.service||'', e.status
+  ]);
+  const csv = [header, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'prospection_log.csv';
+  a.click();
+}
+
+function updateLogBadge(increment) {
+  const badge = document.getElementById('nav-badge');
+  const current = parseInt(badge.textContent) || 0;
+  badge.textContent = increment ? current + increment : emailLog.length;
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function showAlert(containerId, type, msg) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  setTimeout(() => { el.innerHTML = ''; }, 4000);
+}
+
+// ── COSTS ─────────────────────────────────────────────────────────────────────
+async function loadCosts() {
+  try {
+    const r = await fetch('/api/costs');
+    const data = await r.json();
+    const today = new Date().toDateString();
+    const weekAgo = Date.now() - 7*24*60*60*1000;
+    const todayTotal = data.entries.filter(e => new Date(e.date).toDateString()===today).reduce((s,e) => s+e.cost_usd, 0);
+    const weekTotal  = data.entries.filter(e => new Date(e.date).getTime()>weekAgo).reduce((s,e) => s+e.cost_usd, 0);
+    const fmt = v => "$" + v.toFixed(4);
+    document.getElementById("cost-today").textContent = fmt(todayTotal);
+    document.getElementById("cost-total").textContent = fmt(data.total_usd||0);
+    const ct = document.getElementById("c-today");
+    if (ct) {
+      ct.textContent = fmt(todayTotal);
+      document.getElementById("c-week").textContent  = fmt(weekTotal);
+      document.getElementById("c-total").textContent = fmt(data.total_usd||0);
+    }
+    renderCostsTable(data.entries||[]);
+  } catch(e) {}
+}
+
+function renderCostsTable(entries) {
+  const wrap = document.getElementById("costs-table-wrap");
+  if (!wrap) return;
+  if (!entries.length) { wrap.innerHTML = "<div class=\"empty\">Aucun appel IA pour l\'instant.</div>"; return; }
+  const typeLabel = { search: "Recherche", email_gen: "Email generé" };
+  wrap.innerHTML = "<table class=\"log-table\"><thead><tr><th>Date</th><th>Action</th><th>Détail</th><th>Tokens in</th><th>Tokens out</th><th>Coût</th></tr></thead><tbody>" +
+    entries.map(e => {
+      const d = new Date(e.date);
+      const ds = d.toLocaleDateString("fr-CA") + " " + d.toLocaleTimeString("fr-CA",{hour:"2-digit",minute:"2-digit"});
+      return "<tr><td style=\"font-size:11px;color:var(--text3);white-space:nowrap;\">" + ds + "</td><td><span class=\"badge badge-gray\">" + (typeLabel[e.type]||e.type) + "</span></td><td style=\"font-size:12px;color:var(--text2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;\">" + (e.detail||"—") + "</td><td style=\"font-family:monospace;font-size:12px;color:var(--text3)\">" + e.input_tokens.toLocaleString() + "</td><td style=\"font-family:monospace;font-size:12px;color:var(--text3)\">" + e.output_tokens.toLocaleString() + "</td><td style=\"font-family:monospace;font-size:12px;color:var(--amber);\">" + "$" + e.cost_usd.toFixed(4) + "</td></tr>";
+    }).join("") + "</tbody></table>";
+}
+
+async function resetCosts() {
+  if (!confirm("Remettre le compteur à zéro ?")) return;
+  await fetch("/api/costs", { method: "DELETE" });
+  loadCosts();
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+loadConfig();
+loadLog();
+loadCosts();
+setInterval(loadCosts, 10000);
+</script>
+</body>
+</html>
