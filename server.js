@@ -57,8 +57,8 @@ app.post('/api/search', async (req, res) => {
   const client = new Anthropic({ apiKey: config.anthropicKey });
   try {
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1200,
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1000,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{ role: 'user', content: `Trouve ${count} vrais "${type}" à ${city} Canada avec web_search. Pour chacun: nom, téléphone, email, adresse, site web. JSON uniquement sans markdown: {"prospects":[{"name":"","phone":"","email":"","address":"","website":"","source":"","hasWebsite":true,"note":""}]}` }]
     });
