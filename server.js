@@ -15,7 +15,14 @@ const LOG_FILE    = path.join(__dirname, 'data', 'emails.json');
 const COSTS_FILE  = path.join(__dirname, 'data', 'costs.json');
 
 function loadConfig() {
-  try { return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch { return {}; }
+  let config = {};
+  try { config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch {}
+  // Environment variables override config file (for Render.com hosting)
+  if (process.env.ANTHROPIC_KEY) config.anthropicKey = process.env.ANTHROPIC_KEY;
+  if (process.env.GMAIL_USER)    config.gmailUser    = process.env.GMAIL_USER;
+  if (process.env.GMAIL_PASS)    config.gmailPass    = process.env.GMAIL_PASS;
+  if (process.env.SENDER_NAME)   config.senderName   = process.env.SENDER_NAME;
+  return config;
 }
 function loadLog() {
   try { return JSON.parse(fs.readFileSync(LOG_FILE, 'utf8')); } catch { return []; }
@@ -136,5 +143,5 @@ app.post('/api/config', (req, res) => {
   res.json({ success: true });
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`\n✅ Bot Prospection lancé sur http://localhost:${PORT}\n`));
