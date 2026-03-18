@@ -125,7 +125,7 @@ app.post('/api/generate-email', async (req, res) => {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 600,
-      messages: [{ role: 'user', content: `Email prospection français, agence web québécoise. Client: "${clientName}", service: "${service}". Services disponibles: création de site web professionnel ou plateforme automatisée de gestion. Ton: ${tone}. Max 180 mots, accrocheur, montre la valeur concrète. JSON: {"subject":"","body":""}` }]
+      messages: [{ role: 'user', content: `Email prospection français. Expéditeur: développeur chez Stealth Lab (agence web québécoise). Client: "${clientName}", service: "${service}". Max 180 mots, accrocheur, valeur concrète pour leur business. Signe avec "L'équipe Stealth Lab". Ton: ${tone}. JSON: {"subject":"","body":""}` }]
     });
     const cost = trackCost('email_gen', response.usage, `${service} pour ${clientName}`);
     const text = response.content[0].text.trim();
@@ -248,7 +248,7 @@ async function processQueue() {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 600,
-      messages: [{ role: 'user', content: `Email prospection français, agence web québécoise. Client: "${item.name}". Propose UN des deux services suivants (choisis celui qui correspond le mieux au type de business) : soit "Création de site web professionnel" soit "Plateforme automatisée de gestion (réservations, commandes, clients)". Ton: ${item.tone}. Max 180 mots, accrocheur, montre la valeur concrète pour leur business. JSON: {"subject":"","body":""}` }]
+      messages: [{ role: 'user', content: `Email prospection français. Expéditeur: développeur chez Stealth Lab (agence web québécoise). Client: "${item.name}". Propose UN des deux services (choisis selon le type de business): "Création de site web professionnel" ou "Plateforme automatisée de gestion (réservations, commandes, clients)". Ton: ${item.tone}. Max 180 mots, accrocheur, valeur concrète. Signe avec "L'équipe Stealth Lab". JSON: {"subject":"","body":""}` }]
     });
     trackCost('auto_email', response.usage, item.name);
 
