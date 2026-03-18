@@ -1,7 +1,7 @@
 {
   "name": "prospection-bot",
-  "version": "1.0.0",
-  "description": "Bot de prospection - trouve des clients et envoie des emails",
+  "version": "2.0.0",
+  "description": "Bot de prospection avec envoi automatique",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -11,6 +11,8 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "imap": "^0.8.19",
+    "mailparser": "^3.6.9",
     "nodemailer": "^6.9.9"
   }
 }
